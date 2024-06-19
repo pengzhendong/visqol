@@ -8,53 +8,35 @@ on:
   pull_request:
 
 jobs:
-  linux-amd64:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        # python-version: ["cp37", "cp39", "cp38", "cp310", "cp311", "cp312"]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-      - name: Set up Python 3.9
+      - name: Set up Python 3.12
         uses: actions/setup-python@v4
         with:
-          python-version: 3.9
-      - name: Setup ViSQOL dependencies
-        uses: ./.github/actions/setup_visqol_deps
-      - name: Build, test, and upload
-        uses: ./.github/actions/visqol_builder
-        with:
-          platform: linux
-          architecture: amd64
+          python-version: "3.12"
+      - shell: bash
+        run: |
+          python -m pip install --upgrade pip setuptools
+          pip install numpy absl-py
 
-  macos-amd64:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.9
-      - name: Setup ViSQOL dependencies
-        uses: ./.github/actions/setup_visqol_deps
-      - name: Build, test, and upload
-        uses: ./.github/actions/visqol_builder
-        with:
-          platform: macos
-          architecture: amd64
+          bazelisk test -c opt :all
+          bazelisk test -c opt python:all
+          bazelisk build -c opt :all
+          bazelisk build -c opt python:all
 
-  macos-arm64:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v4
+          mkdir action-product
+          cp bazel-bin/*_pb2.py action-product/
+          cp bazel-bin/python/visqol_lib_py.so action-product/
+          cp model/lattice_tcditugenmeetpackhref_ls2_nl60_lr12_bs2048_learn.005_ep2400_train1_7_raw.tflite action-product/
+          cp model/libsvm_nu_svr_model.txt  action-product/
+      - uses: actions/upload-artifact@v3
         with:
-          python-version: 3.9
-      - name: Setup ViSQOL dependencies
-        uses: ./.github/actions/setup_visqol_deps
-      - name: Build, test, and upload
-        uses: ./.github/actions/visqol_builder
-        with:
-          platform: macos
-          architecture: arm64
+          name: visqol-${{ matrix.os }}-cp312
+          path: action-product
